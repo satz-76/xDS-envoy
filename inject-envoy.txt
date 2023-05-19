@@ -1,0 +1,62 @@
+Certainly! Here's an example configuration for the `envoy.filters.http.headers` filter to manipulate headers using Envoy Proxy:
+
+```yaml
+http_filters:
+  - name: envoy.filters.http.headers
+    typed_config:
+      "@type": type.googleapis.com/envoy.extensions.filters.http.headers.v3.Headers
+      request_headers_to_add:
+        - header:
+            key: X-Custom-Header
+            value: Custom Value
+          append: false
+```
+
+In this example, we're using the `envoy.filters.http.headers` filter to add a new request header named `X-Custom-Header` with a value of `Custom Value`.
+
+The `request_headers_to_add` field is an array where you can define multiple headers to be added to the request. Each header is defined using the `header` object, specifying the `key` (header name) and `value` (header value). The `append` field determines whether the header should be appended to existing headers or replace any existing header with the same name.
+
+Adjust the configuration according to your needs. You can add multiple headers by extending the `request_headers_to_add` array with additional `header` objects.
+
+Ensure that the `envoy.filters.http.headers` filter is included in the `http_filters` section of your Envoy configuration file.
+
+After applying the configuration and restarting Envoy Proxy, incoming requests will have the specified header injected before being forwarded to the upstream server.
+
+Note that this example showcases header addition. The `envoy.filters.http.headers` filter also provides other capabilities like header removal, header modification, and more. Refer to the Envoy documentation for your specific version to explore the complete range of options and learn about additional header manipulation features provided by the filter.
+
+
+
+=========================================
+
+Certainly! Here's an example configuration using the `envoy.filters.http.headers` filter to modify headers in Envoy Proxy:
+
+```yaml
+http_filters:
+  - name: envoy.filters.http.headers
+    typed_config:
+      "@type": type.googleapis.com/envoy.extensions.filters.http.headers.v3.Headers
+      request_headers_to_add:
+        - header:
+            key: X-Custom-Header
+            value: Custom Value
+      response_headers_to_add:
+        - header:
+            key: X-Response-Header
+            value: Response Value
+      response_headers_to_remove:
+        - "X-Unwanted-Header"
+```
+
+In this example, we configure the `envoy.filters.http.headers` filter to add custom headers to both the request and response, as well as remove a specific response header.
+
+- `request_headers_to_add` specifies the headers to add to the incoming request. In this case, we add an `X-Custom-Header` with the value `Custom Value`.
+
+- `response_headers_to_add` specifies the headers to add to the response sent by the upstream server. Here, we add an `X-Response-Header` with the value `Response Value`.
+
+- `response_headers_to_remove` specifies the headers to remove from the response sent by the upstream server. In this case, we remove the `X-Unwanted-Header`.
+
+Make sure to include this configuration within the `http_filters` section of your Envoy configuration file. The `envoy.filters.http.headers` filter will be applied to all incoming requests and outgoing responses.
+
+Restart Envoy Proxy for the configuration changes to take effect. Now, when Envoy receives a request, it will add the specified request header and forward the request to the upstream server. Similarly, when the upstream server sends a response, Envoy will add the specified response header and remove the unwanted response header before forwarding it back to the client.
+
+You can customize the headers to add or remove based on your requirements. Additionally, the `envoy.filters.http.headers` filter provides many more capabilities for manipulating headers, such as header value transformations, header prefix additions, and more. Refer to the Envoy documentation for your specific Envoy version to explore all the available options.

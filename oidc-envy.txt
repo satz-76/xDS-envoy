@@ -1,0 +1,76 @@
+Sure! Here's an example configuration for using OIDC with Envoy proxy:
+
+```yaml
+static_resources:
+  listeners:
+    - name: listener_0
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8080
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: backend
+                      domains: ["*"]
+                      routes:
+                        - match:
+                            prefix: "/"
+                          route:
+                            cluster: backend_service
+                http_filters:
+                  - name: envoy.filters.http.ext_authz
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                      stat_prefix: ext_authz
+                      grpc_service:
+                        envoy_grpc:
+                          cluster_name: oidc_authz_service
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config: {}
+  clusters:
+    - name: oidc_authz_service
+      connect_timeout: 0.25s
+      type: LOGICAL_DNS
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: oidc_authz_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: oidc_authz_service
+                      port_value: 50051
+    - name: backend_service
+      connect_timeout: 0.25s
+      type: LOGICAL_DNS
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: backend_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: backend_service
+                      port_value: 8081
+```
+
+This is a basic configuration that sets up Envoy to proxy incoming HTTP requests and authenticate them using an OIDC provider. Here are a few things to note about this example:
+
+- The listener is configured to listen on port 8080 and forward requests to the backend service listening on port 8081.
+- The HTTP filters include the `ext_authz` filter, which is responsible for performing OIDC authentication and authorization. You will need to configure it with the necessary OIDC provider details.
+- The `oidc_authz_service` cluster specifies the endpoint for the OIDC authorization service, and the `backend_service` cluster specifies the endpoint for the backend service.
+- This is a basic example and may need additional configuration depending on your specific OIDC provider and use case.
+
+Keep in mind that this is a simplified example, and the actual configuration may vary based on your requirements and the capabilities of your OIDC provider. It's recommended to refer to the official Envoy documentation and the documentation of your OIDC provider for detailed configuration instructions and best practices.

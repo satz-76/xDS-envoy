@@ -1,0 +1,24 @@
+To inject an HTTP header in the request using Envoy Proxy, you can use Envoy's header manipulation filters. Envoy provides several filters that allow you to modify or add headers during request processing.
+
+Here's an example configuration to inject an HTTP header using Envoy Proxy:
+
+```yaml
+http_filters:
+  - name: envoy.filters.http.lua
+    typed_config:
+      "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+      inline_code: |
+        function envoy_on_request(request_handle)
+          request_handle:headers():add("X-Custom-Header", "Custom Value")
+        end
+```
+
+In this example, we use the Lua filter to inject an `X-Custom-Header` with a value of `Custom Value` into the request headers. The Lua script is executed during the `envoy_on_request` callback, allowing you to modify the request headers as needed.
+
+You can place this configuration within the `http_filters` section of your Envoy configuration file. Make sure you have the necessary Lua filter plugin installed.
+
+Restart Envoy Proxy for the configuration to take effect. Now, when Envoy receives an incoming request, it will inject the specified header into the request before forwarding it to the upstream server.
+
+You can customize the Lua script to inject different headers or modify existing headers based on your requirements. Additionally, Envoy provides other built-in filters like `envoy.filters.http.headers`, which offer header manipulation capabilities and can be used instead of the Lua filter if it suits your needs better.
+
+Remember to refer to the Envoy documentation for the specific version you're using to ensure compatibility and find more details on configuring header manipulation filters.
