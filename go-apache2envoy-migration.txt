@@ -1,0 +1,127 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+const (
+	apacheVhostDir = "/home/satheeshb/projects/go-apache2envoy/sites-available/sites-available"
+	envoyConfigDir = "/tmp/envoy"
+)
+
+func main() {
+	// Create Envoy configuration directory if it doesn't exist
+	if err := os.MkdirAll(envoyConfigDir, 0755); err != nil {
+		fmt.Printf("Error creating Envoy config directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	// List Apache virtual host files
+	vhostFiles, err := ioutil.ReadDir(apacheVhostDir)
+	if err != nil {
+		fmt.Printf("Error listing Apache virtual host files: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Iterate through Apache virtual host files
+	for _, vhostFile := range vhostFiles {
+		if !vhostFile.IsDir() {
+			vhostFilePath := filepath.Join(apacheVhostDir, vhostFile.Name())
+
+			// Extract virtual host name from the file name
+			vhostName := strings.TrimSuffix(vhostFile.Name(), ".conf")
+
+			// Create a corresponding Envoy bootstrap configuration file
+			envoyConfigFile := filepath.Join(envoyConfigDir, fmt.Sprintf("%s.yaml", vhostName))
+
+			if err := convertVhostToEnvoyConfig(vhostFilePath, envoyConfigFile, vhostName); err != nil {
+				fmt.Printf("Error converting Apache virtual host to Envoy bootstrap config: %v\n", err)
+			}
+		}
+	}
+}
+
+func convertVhostToEnvoyConfig(vhostFile, envoyConfigFile, vhostName string) error {
+	// Open Apache virtual host file
+	file, err := os.Open(vhostFile)
+	if err != nil {
+		return fmt.Errorf("error opening Apache virtual host file: %v", err)
+	}
+	defer file.Close()
+
+	// Create the Envoy bootstrap configuration file
+	envoyFile, err := os.Create(envoyConfigFile)
+	if err != nil {
+		return fmt.Errorf("error creating Envoy bootstrap configuration file: %v", err)
+	}
+	defer envoyFile.Close()
+
+	// Start writing the Envoy bootstrap configuration
+	writer := bufio.NewWriter(envoyFile)
+	writer.WriteString("admin:\n")
+	writer.WriteString("  access_log_path: /var/log/envoy/admin_access.log\n")
+	writer.WriteString("  address:\n")
+	writer.WriteString("    socket_address:\n")
+	writer.WriteString("      address: 0.0.0.0\n")
+	writer.WriteString("      port_value: 9901\n")
+	writer.WriteString("static_resources:\n")
+	writer.WriteString("  listeners:\n")
+
+	scanner := bufio.NewScanner(file)
+	var domainList []string
+	var inVirtualHost bool
+
+	// Extract relevant information from Apache virtual host configuration
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.HasPrefix(strings.TrimSpace(line), "<VirtualHost") {
+			// Extract the listening address and port from the VirtualHost line
+			address := strings.TrimPrefix(strings.TrimSuffix(strings.TrimSpace(line), ">"), "<VirtualHost ")
+			port := strings.Split(address, ":")[1]
+
+			// Write the listener configuration to the Envoy bootstrap file
+			writer.WriteString(fmt.Sprintf("  - address:\n"))
+			writer.WriteString(fmt.Sprintf("      socket_address:\n"))
+			writer.WriteString(fmt.Sprintf("        address: %s\n", address))
+			writer.WriteString(fmt.Sprintf("        port_value: %s\n", port))
+			writer.WriteString(fmt.Sprintf("    filter_chains:\n"))
+			writer.WriteString(fmt.Sprintf("      - filters:\n"))
+			writer.WriteString(fmt.Sprintf("          - name: envoy.http_connection_manager\n"))
+			writer.WriteString(fmt.Sprintf("            typed_config:\n"))
+			writer.WriteString(fmt.Sprintf("              '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager\n"))
+			writer.WriteString(fmt.Sprintf("              stat_prefix: http-inbound\n"))
+			writer.WriteString(fmt.Sprintf("              route_config:\n"))
+			writer.WriteString(fmt.Sprintf("                name: local_route\n"))
+			writer.WriteString(fmt.Sprintf("                virtual_hosts:\n"))
+
+			inVirtualHost = true
+		} else if inVirtualHost && (strings.HasPrefix(strings.TrimSpace(line), "ServerName") || strings.HasPrefix(strings.TrimSpace(line), "ServerAlias")) {
+			// Extract the ServerName and ServerAlias from the VirtualHost block
+			domain := strings.TrimSpace(strings.SplitN(line, " ", 2)[1])
+			domainList = append(domainList, domain)
+		} else if strings.TrimSpace(line) == "</VirtualHost>" && inVirtualHost {
+			// End the current listener configuration
+			for _, domain := range domainList {
+				writer.WriteString(fmt.Sprintf("                  - %s\n", domain))
+			}
+			writer.WriteString(fmt.Sprintf("            http_filters:\n"))
+			writer.WriteString(fmt.Sprintf("              - name: envoy.filters.http.router\n"))
+
+			inVirtualHost = false
+			domainList = nil
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading Apache virtual host file: %v", err)
+	}
+
+	writer.Flush()
+	return nil
+}
