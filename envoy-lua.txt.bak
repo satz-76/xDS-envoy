@@ -31,8 +31,14 @@ static_resources:
                 function envoy_on_response(response_handle)
                   local content_length = response_handle:body():setBytes("<html><b>Not Found<b></html>")
                   response_handle:headers():replace("content-length", content_length)
-                  response_handle:headers():replace("content-type", "text/html")
+                   local cache_control_header = response_handle:headers():get("Cache-Control")
+                    if cache_control_header == nil then
+                      response_handle:headers():add("Cache-Control", "public, max-age=3600")
+                    end
+                  response_handle:headers():get("content-type")
                 end         
+                function envoy_on_request(request_handle)
+                end  
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
