@@ -1,0 +1,53 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+)
+
+// Response represents the structure of the JSON data that we will return
+type Response struct {
+	Path      string            `json:"path"`
+	Host      string            `json:"host"`
+	Method    string            `json:"method"`
+	Proto     string            `json:"proto"`
+	Headers   map[string][]string `json:"headers"`
+}
+
+func handleRequest(w http.ResponseWriter, r *http.Request) {
+	// Extract headers from the incoming request
+	headers := make(map[string][]string)
+	for name, values := range r.Header {
+		headers[name] = values
+	}
+
+	// Define the response with the extracted headers and other details
+	response := Response{
+		Path:      r.URL.Path,
+		Host:      r.Host,
+		Method:    r.Method,
+		Proto:     r.Proto,
+		Headers:   headers,
+	}
+
+	// Convert the response to JSON
+	jsonData, err := json.MarshalIndent(response, "", "  ")
+	if err != nil {
+		http.Error(w, "Error generating JSON", http.StatusInternalServerError)
+		return
+	}
+
+	// Set the Content-Type header and send the response
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonData)
+}
+
+func main() {
+	// Set up the HTTP server to handle requests
+	http.HandleFunc("/", handleRequest)
+
+	// Start the HTTP server
+	fmt.Println("Server started at http://localhost:3000")
+	http.ListenAndServe(":3000", nil)
+}
