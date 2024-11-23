@@ -1,9 +1,15 @@
+!ignore dynamic_sockets:
+- &admin_address {address: 127.0.0.1, port_value: 9000}
+- &listener_address {address: 127.0.0.1, port_value: 18000}
+- &backend_address {address: 127.0.0.1, port_value: 3000}
+- &ext_proc_address {address: 127.0.0.1, port_value: 18080}
+
 admin:
   access_log_path: /dev/null
   address:
-    socket_address:
-      address: 127.0.0.1
-      port_value: 9000
+    socket_address: *admin_address
+#      address: 127.0.0.1
+#      port_value: 9000
 node:
   cluster: service_greeter
   id: test-id
@@ -12,9 +18,9 @@ static_resources:
   listeners:
   - name: listener_0
     address:
-      socket_address:
-        address: 127.0.0.1
-        port_value: 18000
+      socket_address: *listener_address
+#        address: 127.0.0.1
+#        port_value: 18000
     filter_chains:
     - filters:
       - name: envoy.filters.network.http_connection_manager
@@ -63,9 +69,9 @@ static_resources:
       - lb_endpoints:
         - endpoint:
             address:
-              socket_address:
-                address: 127.0.0.1
-                port_value: 3000
+              socket_address: *backend_address 
+#                address: 127.0.0.1
+#                port_value: 3000
 #    transport_socket:
 #      name: envoy.transport_sockets.tls
 #      typed_config:
@@ -80,16 +86,17 @@ static_resources:
       - lb_endpoints:
         - endpoint:
             address:
-              socket_address:
-                address: 127.0.0.1
-                port_value: 18080 
-    health_checks:
-      - timeout: 1s
-        interval: 5s
-        interval_jitter: 1s
-        no_traffic_interval: 5s
-        unhealthy_threshold: 1
-        healthy_threshold: 3
-        grpc_health_check:
-          service_name: "envoy.service.ext_proc.v3.ExternalProcessor"
-          authority: "server.domain.com"
+              socket_address: *ext_proc_address
+#                address: 127.0.0.1
+#                port_value: 18080 
+#    health_checks:
+#      - timeout: 1s
+#        interval: 5s
+#        interval_jitter: 1s
+#        no_traffic_interval: 5s
+#        unhealthy_threshold: 1
+#        healthy_threshold: 3
+#        grpc_health_check:
+#          service_name: "envoy.service.ext_proc.v3.ExternalProcessor"
+#          authority: "server.domain.com"
+#
