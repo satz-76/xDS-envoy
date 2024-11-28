@@ -1,0 +1,46 @@
+package main
+
+import (
+    "context"
+    "log"
+    "net"
+
+    rls "github.com/envoyproxy/go-control-plane/envoy/service/ratelimit/v3"
+    "google.golang.org/grpc"
+)
+
+type RateLimitService struct {
+    rls.UnimplementedRateLimitServiceServer
+}
+
+func (s *RateLimitService) ShouldRateLimit(ctx context.Context, req *rls.RateLimitRequest) (*rls.RateLimitResponse, error) {
+    log.Printf("Received rate-limit request: %v", req)
+
+    // Custom logic to decide whether to allow or deny the request
+    allowed := true // Example: Replace with actual logic
+
+    if allowed {
+        return &rls.RateLimitResponse{
+            OverallCode: rls.RateLimitResponse_OK,
+        }, nil
+    }
+
+    return &rls.RateLimitResponse{
+        OverallCode: rls.RateLimitResponse_OVER_LIMIT,
+    }, nil
+}
+
+func main() {
+    server := grpc.NewServer()
+    rls.RegisterRateLimitServiceServer(server, &RateLimitService{})
+
+    listener, err := net.Listen("tcp", ":8080")
+    if err != nil {
+        log.Fatalf("Failed to listen: %v", err)
+    }
+
+    log.Println("RateLimitService running on port 8080")
+    if err := server.Serve(listener); err != nil {
+        log.Fatalf("Failed to serve: %v", err)
+    }
+}
