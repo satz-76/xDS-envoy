@@ -1,0 +1,51 @@
+package main
+
+import (
+	"context"
+	"log"
+	"time"
+
+	pb "github.com/envoyproxy/go-control-plane/envoy/service/ratelimit/v3"
+	pb_struct "github.com/envoyproxy/go-control-plane/envoy/extensions/common/ratelimit/v3"
+
+	"google.golang.org/grpc"
+)
+
+func main() {
+	// Connect to the Ratelimit service
+	conn, err := grpc.Dial("localhost:8081", grpc.WithInsecure()) // Replace with your Ratelimit service address
+	if err != nil {
+		log.Fatalf("Failed to connect to Ratelimit service: %v", err)
+	}
+	defer conn.Close()
+
+	client := pb.NewRateLimitServiceClient(conn)
+
+	// Create a request
+	request := &pb.RateLimitRequest{
+		Domain: "example", // Domain for rate-limiting
+		Descriptors: []*pb_struct.RateLimitDescriptor{
+			{
+				Entries: []*pb_struct.RateLimitDescriptor_Entry{
+					{
+						Key:   "user_id",
+						Value: "12345", // Replace with your custom key-value
+					},
+				},
+			},
+		},
+		HitsAddend: 1, // Number of hits to add to the rate limit
+	}
+
+	// Call the RateLimit API
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	response, err := client.ShouldRateLimit(ctx, request)
+	if err != nil {
+		log.Fatalf("Error calling ShouldRateLimit: %v", err)
+	}
+
+	// Handle the response
+	log.Printf("Rate limit response: %v", response)
+}
