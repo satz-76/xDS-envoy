@@ -1,0 +1,101 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"log"
+	"net"
+	"net/http"
+
+	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	rls "github.com/envoyproxy/go-control-plane/envoy/service/ratelimit/v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
+)
+type MyStruct struct {
+    Value string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+}
+type RateLimitService struct {
+    rls.UnimplementedRateLimitServiceServer
+}
+
+
+
+func (s *RateLimitService) ShouldRateLimit(ctx context.Context, req *rls.RateLimitRequest) (*rls.RateLimitResponse, error) {
+    log.Printf("Received rate-limit request: %v", req)
+
+
+    md, ok := metadata.FromIncomingContext(ctx)
+
+    if !ok{
+        return nil, fmt.Errorf("Failed to get metadata")
+    }
+
+    fmt.Println(" Incoming Headers")
+    for key,values := range md{
+        for _, value := range values {
+            fmt.Printf("%s: %s\n", key,value)
+        }
+    }
+    s1 := MyStruct{
+        Value: "true", 
+    }
+    var addHeaders []*corev3.HeaderValue
+    addHeaders = append(addHeaders, &corev3.HeaderValue{Key: "x-rated-limited",Value: s1.Value} )
+    
+    s2 := MyStruct{
+        Value: "false", 
+    }
+    var addHeaders2 []*corev3.HeaderValue
+    addHeaders2 = append(addHeaders2, &corev3.HeaderValue{Key: "x-rated-limited",Value: s2.Value} )
+
+    
+    // Custom logic to decide whether to allow or deny the request
+    allowed := true // Example: Replace with actual logic
+
+
+    if allowed {
+        return &rls.RateLimitResponse{
+            OverallCode: rls.RateLimitResponse_OK,
+            ResponseHeadersToAdd: addHeaders2,
+        }, nil
+    }
+
+    return &rls.RateLimitResponse{
+        OverallCode: rls.RateLimitResponse_OVER_LIMIT,
+        ResponseHeadersToAdd: addHeaders,
+    }, nil
+    
+}
+
+func main() {
+    
+    url := "http://localhost:9999" // Replace with your API endpoint
+    response, err := http.Get(url)
+    if err != nil {
+        return
+    }
+    defer response.Body.Close()
+
+    body, err := io.ReadAll(response.Body) // Use io.ReadAll instead of ioutil.ReadAll
+    if err != nil {
+        return
+    }
+
+    fmt.Printf("Response from external service: %s\n", string(body))
+
+
+    server := grpc.NewServer()
+    rls.RegisterRateLimitServiceServer(server, &RateLimitService{})
+
+    listener, err := net.Listen("tcp", ":8080")
+    if err != nil {
+        log.Fatalf("Failed to listen: %v", err)
+    }
+
+    log.Println("RateLimitService running on port 8080")
+    if err := server.Serve(listener); err != nil {
+        log.Fatalf("Failed to serve: %v", err)
+    }
+}
